@@ -1,4 +1,4 @@
-const API_BASE = "";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 export const getAuthToken = () => localStorage.getItem("bitroot_token") || localStorage.getItem("snipurl_token");
 export const setAuthToken = (token) => {
