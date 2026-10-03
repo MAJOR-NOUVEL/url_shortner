@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BitRoot — Fast URL Shortener</title>
+    <link rel="icon" type="image/png" href="/logo-bitroot.png">
+    <link rel="shortcut icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/logo-bitroot.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
+              mono: ['"JetBrains Mono"', '"Consolas"', 'monospace'],
+            },
+            colors: {
+              kraft: {
+                50: '#fdfbf7',
+                100: '#f6f1e5',
+                150: '#eee5d3',
+                200: '#e5d9bf',
+                300: '#d5c5a4',
+                400: '#ba9f73',
+                500: '#9b7f52',
+                600: '#7b633d',
+                700: '#5a4729',
+                800: '#3d301b',
+                900: '#251c10',
+                border: '#d6c8b0',
+                borderDark: '#bfae91',
+              },
+              amberAccent: {
+                400: '#f3b438',
+                500: '#e59a18',
+                600: '#d0860c',
+                700: '#b06d04',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #f1ebd9;
+        background-image: 
+          radial-gradient(#e4d8c2 0.75px, transparent 0.75px),
+          linear-gradient(to bottom, #f5efe1, #ede5d1);
+        background-size: 20px 20px, 100% 100%;
+        color: #2b2214;
+      }
+      .tactile-btn {
+        box-shadow: 0 1px 2px rgba(45, 30, 10, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      }
+      .tactile-btn:active {
+        transform: translateY(1px);
+        box-shadow: inset 0 1px 2px rgba(45, 30, 10, 0.2);
+      }
+      .cardboard-shadow {
+        box-shadow: 0 4px 16px -2px rgba(60, 45, 20, 0.08), 0 2px 6px -1px rgba(60, 45, 20, 0.05);
+      }
+    </style>
+  </head>
+  <body class="min-h-screen flex flex-col font-sans antialiased selection:bg-amber-300/40 selection:text-amber-950">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

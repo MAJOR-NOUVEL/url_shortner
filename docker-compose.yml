@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: snipurl_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-shortener_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shortener_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-shortener_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shortener_user} -d ${POSTGRES_DB:-shortener_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: snipurl_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: snipurl_api
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-shortener_user}:${POSTGRES_PASSWORD:-shortener_pass}@postgres:5432/${POSTGRES_DB:-shortener_db}
+      - REDIS_URL=redis://redis:6379/0
+      - RATELIMIT_STORAGE_URI=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-f7b9c24098674917a268e3c15d083e91129f1234567890abcdef1234567890ab}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-e3a1d95c804b4657b9836f8742131234567890abcdef1234567890abcdef12345678}
+      - BASE_URL=${BASE_URL:-http://localhost:5000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: snipurl_celery
+    restart: unless-stopped
+    command: celery -A wsgi.celery_app worker --loglevel=info -c 4
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-shortener_user}:${POSTGRES_PASSWORD:-shortener_pass}@postgres:5432/${POSTGRES_DB:-shortener_db}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-f7b9c24098674917a268e3c15d083e91129f1234567890abcdef1234567890ab}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-e3a1d95c804b4657b9836f8742131234567890abcdef1234567890abcdef12345678}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: snipurl_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
