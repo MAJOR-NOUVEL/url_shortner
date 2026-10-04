@@ -22,6 +22,11 @@ def create_app(config_name: str = None) -> Flask:
     config_obj = config_by_name.get(config_name, config_by_name["default"])
     app.config.from_object(config_obj)
 
+    # Normalize DATABASE_URL for SQLAlchemy 2.0 if using legacy postgres:// scheme (Render/Supabase)
+    db_uri = app.config.get("SQLALCHEMY_DATABASE_URI") or os.getenv("DATABASE_URL")
+    if db_uri and db_uri.startswith("postgres://"):
+        app.config["SQLALCHEMY_DATABASE_URI"] = db_uri.replace("postgres://", "postgresql://", 1)
+
     # Logging configuration
     logging.basicConfig(
         level=logging.INFO if not app.config.get("DEBUG") else logging.DEBUG,
@@ -113,9 +118,11 @@ def create_app(config_name: str = None) -> Flask:
         logger.error("Internal Server Error: %s", e)
         return jsonify({"error": "Internal server error"}), 500
 
-    # Auto-create tables in development / test SQLite environments
-    if app.config.get("TESTING") or "sqlite" in str(app.config.get("SQLALCHEMY_DATABASE_URI", "")):
-        with app.app_context():
+    # Ensure database tables exist on startup
+    with app.app_context():
+        try:
             db.create_all()
+        except Exception as err:
+            logger.warning("Could not auto-create database tables on startup: %s", err)
 
     return app
