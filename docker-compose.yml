@@ -36,8 +36,8 @@ services:
 
   api:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: snipurl_api
     restart: unless-stopped
     ports:
@@ -60,8 +60,8 @@ services:
 
   celery_worker:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: snipurl_celery
     restart: unless-stopped
     command: celery -A wsgi.celery_app worker --loglevel=info -c 4
@@ -81,8 +81,8 @@ services:
 
   frontend:
     build:
-      context: .
-      dockerfile: frontend/Dockerfile
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: snipurl_frontend
     restart: unless-stopped
     ports:

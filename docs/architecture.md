@@ -1,6 +1,6 @@
-# 📘 Technical Walkthrough: Distributed URL Shortener with Real-Time Analytics
+# Architecture & Technical Specification
 
-This document serves as an exhaustive architectural specification, technical deep dive, and interview preparation guide for the **BitRoot** URL shortener system.
+This document provides the system design, request workflows, and component specifications for the **BitRoot** distributed URL shortener service.
 
 ---
 

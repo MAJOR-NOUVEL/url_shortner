@@ -194,6 +194,10 @@ ruff check backend
 
 ---
 
+## 📖 Documentation
+
+Detailed technical specifications and sequence diagrams can be found in [docs/architecture.md](docs/architecture.md).
+
 ## 🔮 Future Improvements
 1. **GeoIP2 Integration**: MaxMind database for city-level geolocation breakdown.
 2. **Dynamic QR Code Customization**: Embedded brand logos in generated SVG QR codes.
