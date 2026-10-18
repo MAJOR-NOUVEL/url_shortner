@@ -1,5 +1,7 @@
 import json
+import os
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required, verify_jwt_in_request
@@ -7,11 +9,38 @@ from pydantic import ValidationError
 
 from app.extensions import db, limiter
 from app.models.url import URL
+from app.routes.redirect import resolve_short_code
 from app.schemas.url import CreateURLSchema
 from app.utils.base62 import generate_random_base62
 from app.utils.cache import delete_cached_url, set_cached_url
 
 urls_bp = Blueprint("urls", __name__, url_prefix="/api/urls")
+
+def get_effective_base_url() -> str:
+    """
+    Determines the best public domain for generated short links:
+    1. Origin header sent by browser (e.g. Vercel frontend or custom domain)
+    2. Referer header domain
+    3. Explicitly configured BASE_URL (from env var)
+    4. Fallback to request.host_url
+    """
+    origin = request.headers.get("Origin")
+    if origin and origin.startswith(("http://", "https://")):
+        return origin.rstrip("/")
+
+    referer = request.headers.get("Referer")
+    if referer and referer.startswith(("http://", "https://")):
+        parsed = urlparse(referer)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+    configured = current_app.config.get("BASE_URL")
+    if configured and configured.strip():
+        if os.getenv("FLASK_ENV") == "production" and "localhost" in configured:
+            return request.host_url.rstrip("/")
+        return configured.rstrip("/")
+
+    return request.host_url.rstrip("/")
 
 @urls_bp.route("", methods=["POST"])
 @limiter.limit("30 per minute")
@@ -93,7 +122,7 @@ def create_url():
     })
     set_cached_url(target_code, cached_payload, ttl_seconds=ttl_seconds)
 
-    base_url = current_app.config.get("BASE_URL", request.host_url.rstrip("/"))
+    base_url = get_effective_base_url()
     return jsonify(new_url.to_dict(base_url=base_url)), 201
 
 @urls_bp.route("", methods=["GET"])
@@ -101,7 +130,7 @@ def create_url():
 def list_my_urls():
     """Returns list of links created by authenticated user."""
     user_id = int(get_jwt_identity())
-    base_url = current_app.config.get("BASE_URL", request.host_url.rstrip("/"))
+    base_url = get_effective_base_url()
 
     urls = (
         URL.query
@@ -111,6 +140,21 @@ def list_my_urls():
     )
 
     return jsonify([u.to_dict(base_url=base_url) for u in urls]), 200
+
+@urls_bp.route("/resolve/<short_code>", methods=["GET"])
+@limiter.limit("120 per minute")
+def resolve_short_url(short_code: str):
+    """
+    Public resolution API for client-side redirection (SPA).
+    Returns JSON { "short_code": ..., "original_url": ... }
+    """
+    original_url, err_data, status_code = resolve_short_code(short_code)
+    if err_data:
+        return jsonify(err_data), status_code
+    return jsonify({
+        "short_code": short_code,
+        "original_url": original_url
+    }), 200
 
 @urls_bp.route("/<int:url_id>", methods=["DELETE"])
 @jwt_required()

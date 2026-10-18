@@ -21,6 +21,8 @@ services:
         fromDatabase:
           name: bitroot-db
           property: connectionString
+      - key: BASE_URL
+        value: https://bitroot.vercel.app # Set this to your live Vercel URL or custom domain (e.g., https://bitroot.vercel.app)
 
 databases:
   - name: bitroot-db

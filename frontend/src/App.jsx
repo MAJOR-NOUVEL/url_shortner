@@ -4,13 +4,29 @@ import UrlShortener from './components/UrlShortener';
 import UrlTable from './components/UrlTable';
 import AnalyticsModal from './components/AnalyticsModal';
 import AuthModal from './components/AuthModal';
+import RedirectPage from './components/RedirectPage';
 import { api, getAuthToken, removeAuthToken } from './services/api';
 
+const getShortCodeFromPath = () => {
+  if (typeof window === 'undefined') return null;
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, '');
+  if (!path) return null;
+  const reserved = ['health', 'favicon.ico', 'robots.txt', 'static', 'api'];
+  if (reserved.includes(path.toLowerCase())) return null;
+  return path;
+};
+
 export default function App() {
+  const [shortCode, setShortCode] = useState(() => getShortCodeFromPath());
   const [user, setUser] = useState(null);
   const [urls, setUrls] = useState([]);
   const [selectedAnalyticsId, setSelectedAnalyticsId] = useState(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+
+  // If visiting a shortened URL path (e.g. /my-slug or /x7K9pQ), render RedirectPage
+  if (shortCode) {
+    return <RedirectPage shortCode={shortCode} />;
+  }
 
   // Load user on mount if token exists
   useEffect(() => {

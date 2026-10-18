@@ -26,12 +26,32 @@ const request = async (url, options = {}) => {
     headers
   });
 
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("text/html")) {
+    throw new Error(
+      API_BASE
+        ? "Received HTML response instead of JSON. The backend server might be starting up or encountered an error."
+        : "Backend API not reachable. Please ensure VITE_API_BASE_URL is set in Vercel project environment variables."
+    );
+  }
+
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const errorMsg = data.message || data.error || (data.details ? data.details.map(d => d.message).join(", ") : "Request failed");
-    throw new Error(errorMsg);
+    const err = new Error(errorMsg);
+    err.status = res.status;
+    throw err;
   }
   return data;
+};
+
+export const getFullShortUrl = (shortUrl, shortCode) => {
+  if (!shortUrl || shortUrl.includes("localhost") || shortUrl.includes("127.0.0.1") || shortUrl.startsWith("/")) {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      return `${window.location.origin}/${shortCode}`;
+    }
+  }
+  return shortUrl;
 };
 
 export const api = {
@@ -56,6 +76,7 @@ export const api = {
     })
   }),
   getMyUrls: () => request("/api/urls"),
+  resolveUrl: (code) => request(`/api/urls/resolve/${code}`),
   deleteUrl: (id) => request(`/api/urls/${id}`, { method: "DELETE" }),
 
   // Analytics & Health

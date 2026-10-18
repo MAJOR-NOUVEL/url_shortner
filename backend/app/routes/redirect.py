@@ -3,11 +3,13 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, current_app, jsonify, redirect, request
 
-from app.extensions import limiter
+from app.extensions import db, limiter
+from app.models.click import ClickAnalytics
 from app.models.url import URL
 from app.tasks.click_logger import record_click_event
 from app.utils.cache import delete_cached_url, get_cached_url, set_cached_url
-from app.utils.user_agent import extract_coarse_country
+from app.utils.security import hash_ip
+from app.utils.user_agent import clean_referrer, extract_coarse_country, parse_user_agent
 
 redirect_bp = Blueprint("redirect", __name__)
 
@@ -26,20 +28,37 @@ def _safe_dispatch_click(url_id, referrer, user_agent, client_ip, country):
             country=country
         )
     except Exception as exc:
-        current_app.logger.warning("Could not dispatch Celery click logging task: %s", exc)
+        current_app.logger.warning("Could not dispatch Celery click logging task: %s. Falling back to direct database log.", exc)
+        try:
+            salt = current_app.config.get("IP_SALT", "default-salt")
+            anonymized_ip_hash = hash_ip(client_ip, salt)
+            device, browser = parse_user_agent(user_agent)
+            cleaned_ref = clean_referrer(referrer)
+            click = ClickAnalytics(
+                url_id=url_id,
+                clicked_at=datetime.now(timezone.utc),
+                referrer=cleaned_ref,
+                device=device,
+                browser=browser,
+                country=country or "Unknown",
+                ip_hash=anonymized_ip_hash
+            )
+            db.session.add(click)
+            db.session.commit()
+        except Exception as db_exc:
+            db.session.rollback()
+            current_app.logger.warning("Direct DB click logging fallback failed: %s", db_exc)
 
-@redirect_bp.route("/<short_code>", methods=["GET"])
-@limiter.exempt
-def handle_redirect(short_code: str):
+def resolve_short_code(short_code: str):
     """
-    High-Throughput Redirect Controller:
-    1. Checks Redis cache first (sub-millisecond resolution).
-    2. Dispatches asynchronous Celery task for click logging.
-    3. Returns immediate HTTP 302 Found redirect to target URL.
-    4. Handles 404 for missing links, 410 for expired links.
+    Core resolution routine for shortened links.
+    Returns:
+        tuple (target_url, error_dict, status_code)
+        On success: (target_url, None, 200)
+        On error:   (None, {"error": "..."}, status_code)
     """
     if short_code in RESERVED_ROOT_PATHS:
-        return jsonify({"error": "Not found"}), 404
+        return None, {"error": "Not found"}, 404
 
     referrer = request.headers.get("Referer", "Direct")
     user_agent = request.headers.get("User-Agent", "Unknown")
@@ -62,13 +81,13 @@ def handle_redirect(short_code: str):
                     exp_dt = exp_dt.replace(tzinfo=timezone.utc)
                 if datetime.now(timezone.utc) > exp_dt:
                     delete_cached_url(short_code)
-                    return jsonify({"error": "This shortened link has expired."}), 410
+                    return None, {"error": "This shortened link has expired."}, 410
 
             # Asynchronous click logging via Celery (non-blocking)
             if url_id:
                 _safe_dispatch_click(url_id, referrer, user_agent, client_ip, country)
 
-            return redirect(original_url, code=302)
+            return original_url, None, 200
         except Exception:
             # Fall back to database on corrupted cache entry
             pass
@@ -77,10 +96,10 @@ def handle_redirect(short_code: str):
     url = URL.query.filter_by(short_code=short_code, is_active=True).first()
 
     if not url:
-        return jsonify({"error": "Short link not found."}), 404
+        return None, {"error": "Short link not found."}, 404
 
     if url.is_expired:
-        return jsonify({"error": "This shortened link has expired."}), 410
+        return None, {"error": "This shortened link has expired."}, 410
 
     # Calculate remaining TTL and populate Redis cache
     ttl_seconds = current_app.config.get("CACHE_DEFAULT_TIMEOUT", 86400)
@@ -98,7 +117,22 @@ def handle_redirect(short_code: str):
     })
     set_cached_url(short_code, cached_payload, ttl_seconds=ttl_seconds)
 
-    # Asynchronous click logging via Celery (safe non-blocking)
+    # Asynchronous click logging
     _safe_dispatch_click(url.id, referrer, user_agent, client_ip, country)
 
-    return redirect(url.original_url, code=302)
+    return url.original_url, None, 200
+
+@redirect_bp.route("/<short_code>", methods=["GET"])
+@limiter.exempt
+def handle_redirect(short_code: str):
+    """
+    High-Throughput Redirect Controller:
+    1. Checks Redis cache first (sub-millisecond resolution).
+    2. Dispatches asynchronous Celery task for click logging.
+    3. Returns immediate HTTP 302 Found redirect to target URL.
+    4. Handles 404 for missing links, 410 for expired links.
+    """
+    original_url, err_data, status_code = resolve_short_code(short_code)
+    if err_data:
+        return jsonify(err_data), status_code
+    return redirect(original_url, code=302)

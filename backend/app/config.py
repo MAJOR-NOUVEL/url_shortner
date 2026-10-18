@@ -20,7 +20,7 @@ class BaseConfig:
     CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", os.getenv("REDIS_URL", "redis://localhost:6379/0"))
     CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", os.getenv("REDIS_URL", "redis://localhost:6379/0"))
 
-    BASE_URL = os.getenv("BASE_URL", "http://localhost:5000")
+    BASE_URL = os.getenv("BASE_URL")
     CACHE_DEFAULT_TIMEOUT = int(os.getenv("CACHE_DEFAULT_TIMEOUT", 86400))  # 24h
     IP_SALT = os.getenv("IP_SALT", "default-privacy-preserving-salt-change-in-prod")
 
@@ -58,6 +58,7 @@ class DevelopmentConfig(BaseConfig):
     DEBUG = True
     ENV = "development"
     SQLALCHEMY_DATABASE_URI = _get_dev_db_uri()
+    BASE_URL = os.getenv("BASE_URL", "http://localhost:5000")
 
 class TestingConfig(BaseConfig):
     TESTING = True
@@ -67,6 +68,7 @@ class TestingConfig(BaseConfig):
     RATELIMIT_ENABLED = False
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
     CACHE_DEFAULT_TIMEOUT = 300
+    BASE_URL = os.getenv("BASE_URL", "http://localhost:5000")
 
 class ProductionConfig(BaseConfig):
     DEBUG = False

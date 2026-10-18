@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getFullShortUrl } from '../services/api';
 
 export default function UrlShortener({ onUrlCreated }) {
   const [url, setUrl] = useState('');
@@ -9,6 +10,8 @@ export default function UrlShortener({ onUrlCreated }) {
   const [error, setError] = useState('');
   const [lastCreated, setLastCreated] = useState(null);
   const [copied, setCopied] = useState(false);
+
+  const displayShortUrl = lastCreated ? getFullShortUrl(lastCreated.short_url, lastCreated.short_code) : '';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,9 +35,9 @@ export default function UrlShortener({ onUrlCreated }) {
   };
 
   const handleCopy = async () => {
-    if (!lastCreated?.short_url) return;
+    if (!displayShortUrl) return;
     try {
-      await navigator.clipboard.writeText(lastCreated.short_url);
+      await navigator.clipboard.writeText(displayShortUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (e) {
@@ -154,8 +157,8 @@ export default function UrlShortener({ onUrlCreated }) {
                 </span>
               </div>
               <div className="text-lg font-bold font-mono text-kraft-900 truncate">
-                <a href={lastCreated.short_url} target="_blank" rel="noreferrer" className="text-amberAccent-700 hover:underline">
-                  {lastCreated.short_url}
+                <a href={displayShortUrl} target="_blank" rel="noreferrer" className="text-amberAccent-700 hover:underline">
+                  {displayShortUrl}
                 </a>
               </div>
               <p className="text-xs text-kraft-600 truncate max-w-md font-mono">
@@ -185,7 +188,7 @@ export default function UrlShortener({ onUrlCreated }) {
                 )}
               </button>
               <a
-                href={lastCreated.short_url}
+                href={displayShortUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="p-2 bg-kraft-100 hover:bg-kraft-200 border border-kraft-border text-kraft-700 rounded-lg tactile-btn text-xs transition-colors"

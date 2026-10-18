@@ -50,3 +50,32 @@ def test_list_and_delete_user_urls(client, auth_user):
     # Verify link2 is removed from list
     list_after = client.get("/api/urls", headers=auth_user["headers"])
     assert len(list_after.get_json()) == 1
+
+def test_resolve_short_url_lifecycle(client):
+    # 1. Create a link
+    resp = client.post("/api/urls", json={"url": "https://developer.mozilla.org"})
+    assert resp.status_code == 201
+    code = resp.get_json()["short_code"]
+
+    # 2. Resolve link via API
+    resolve_resp = client.get(f"/api/urls/resolve/{code}")
+    assert resolve_resp.status_code == 200
+    res_data = resolve_resp.get_json()
+    assert res_data["short_code"] == code
+    assert res_data["original_url"] == "https://developer.mozilla.org"
+
+    # 3. Resolve unknown link returns 404
+    unknown_resp = client.get("/api/urls/resolve/nonexistent-code-12345")
+    assert unknown_resp.status_code == 404
+
+def test_create_url_respects_frontend_origin_header(client):
+    # When request comes from Vercel frontend or custom domain:
+    resp = client.post(
+        "/api/urls",
+        json={"url": "https://vitejs.dev"},
+        headers={"Origin": "https://bitroot.vercel.app"}
+    )
+    assert resp.status_code == 201
+    data = resp.get_json()
+    assert data["short_url"].startswith("https://bitroot.vercel.app/")
+
